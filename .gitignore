@@ -8,3 +8,5 @@ build/
 audit*.jsonl
 runs/
 results/*/llama*/
+overnight.*
+site/build/
