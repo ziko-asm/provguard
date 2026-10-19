@@ -1,0 +1,5 @@
+# Ollama's default context window silently truncates AgentDojo's long tool
+# schemas. This variant gives Llama 3.1 8B enough room.
+#   ollama create llama3.1-16k -f bench/Modelfile
+FROM llama3.1:8b
+PARAMETER num_ctx 16384

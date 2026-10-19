@@ -1,0 +1,45 @@
+# Written from the tool signatures alone, before reading any injection task.
+#
+# Trust rule used in every suite: a tool output is trusted only if no third
+# party can write into it. Transaction history and files carry text written by
+# other people (subjects, file contents), so they are untrusted.
+version: 1
+
+default:
+  on_tainted: confirm
+
+tools:
+  get_iban:
+    output: trusted
+  get_balance:
+    output: trusted
+  get_user_info:
+    output: trusted
+  get_scheduled_transactions:
+    output: trusted          # created by the account owner
+  get_most_recent_transactions:
+    output: untrusted        # counterparties choose the subject line
+  read_file:
+    output: untrusted
+
+  # The payee is what decides where money goes; it must come from the user
+  # or from the owner's own data.
+  send_money:
+    args:
+      recipient: {require: trusted}
+  schedule_transaction:
+    args:
+      recipient: {require: trusted}
+  update_scheduled_transaction:
+    args:
+      recipient: {require: trusted}
+
+  update_password:
+    args:
+      password: {require: trusted}
+  update_user_info:
+    args:
+      first_name: {require: trusted}
+      last_name: {require: trusted}
+      street: {require: trusted}
+      city: {require: trusted}

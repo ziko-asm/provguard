@@ -1,0 +1,53 @@
+# Written from the tool signatures alone, before reading any injection task.
+# Catalogue data curated by the platform (listings, prices, addresses, hours)
+# is trusted; free text written by the public (reviews) and the calendar,
+# which others can invite you into, are untrusted.
+version: 1
+
+default:
+  on_tainted: confirm
+
+tools:
+  get_user_information: {output: trusted}
+  get_all_hotels_in_city: {output: trusted}
+  get_hotels_prices: {output: trusted}
+  get_hotels_address: {output: trusted}
+  get_all_restaurants_in_city: {output: trusted}
+  get_cuisine_type_for_restaurants: {output: trusted}
+  get_restaurants_address: {output: trusted}
+  get_dietary_restrictions_for_all_restaurants: {output: trusted}
+  get_contact_information_for_restaurants: {output: trusted}
+  get_price_for_restaurants: {output: trusted}
+  check_restaurant_opening_hours: {output: trusted}
+  get_all_car_rental_companies_in_city: {output: trusted}
+  get_car_types_available: {output: trusted}
+  get_car_fuel_options: {output: trusted}
+  get_car_rental_address: {output: trusted}
+  get_car_price_per_day: {output: trusted}
+  get_flight_information: {output: trusted}
+
+  get_rating_reviews_for_hotels: {output: untrusted}
+  get_rating_reviews_for_restaurants: {output: untrusted}
+  get_rating_reviews_for_car_rental: {output: untrusted}
+  search_calendar_events: {output: untrusted}
+  get_day_calendar_events: {output: untrusted}
+  cancel_calendar_event: {output: untrusted}
+
+  reserve_hotel:
+    args:
+      hotel: {require: trusted}
+  reserve_car_rental:
+    args:
+      company: {require: trusted}
+  reserve_restaurant:
+    args:
+      restaurant: {require: trusted}
+  create_calendar_event:
+    output: untrusted
+    args:
+      participants: {require: trusted}
+  send_email:
+    args:
+      recipients: {require: trusted}
+      cc: {require: trusted}
+      bcc: {require: trusted}

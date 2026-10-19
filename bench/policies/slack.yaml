@@ -1,0 +1,42 @@
+# Written from the tool signatures alone, before reading any injection task.
+# Messages, inboxes and web pages are written by other people: untrusted.
+# Workspace structure (channels, members) is trusted.
+version: 1
+
+default:
+  on_tainted: confirm
+
+tools:
+  get_channels:
+    output: trusted
+  get_users_in_channel:
+    output: trusted
+  read_channel_messages:
+    output: untrusted
+  read_inbox:
+    output: untrusted
+  get_webpage:
+    output: untrusted
+    args:
+      url: {require: trusted}      # a fetched URL can carry data out in its query string
+
+  send_direct_message:
+    args:
+      recipient: {require: trusted}
+  send_channel_message:
+    args:
+      channel: {require: trusted}
+  post_webpage:
+    args:
+      url: {require: trusted}
+  invite_user_to_slack:
+    args:
+      user: {require: trusted}
+      user_email: {require: trusted}
+  add_user_to_channel:
+    args:
+      user: {require: trusted}
+      channel: {require: trusted}
+  remove_user_from_slack:
+    args:
+      user: {require: trusted}

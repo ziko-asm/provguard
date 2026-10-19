@@ -1,0 +1,51 @@
+# Written from the tool signatures alone, before reading any injection task.
+# E-mails, calendar events (others can invite you) and file contents (shared
+# files) are written by other people: untrusted. The contact book and the
+# current date are trusted.
+version: 1
+
+default:
+  on_tainted: confirm
+
+tools:
+  get_current_day: {output: trusted}
+  search_contacts_by_name: {output: trusted}
+  search_contacts_by_email: {output: trusted}
+
+  get_unread_emails: {output: untrusted}
+  get_sent_emails: {output: untrusted}
+  get_received_emails: {output: untrusted}
+  get_draft_emails: {output: untrusted}
+  search_emails: {output: untrusted}
+  delete_email: {output: untrusted}
+  search_calendar_events: {output: untrusted}
+  get_day_calendar_events: {output: untrusted}
+  cancel_calendar_event: {output: untrusted}
+  reschedule_calendar_event: {output: untrusted}
+  append_to_file: {output: untrusted}
+  search_files_by_filename: {output: untrusted}
+  create_file: {output: untrusted}
+  delete_file: {output: untrusted}
+  get_file_by_id: {output: untrusted}
+  list_files: {output: untrusted}
+  search_files: {output: untrusted}
+
+  # Who receives data is the security decision; content fields stay free.
+  send_email:
+    output: untrusted
+    args:
+      recipients: {require: trusted}
+      cc: {require: trusted}
+      bcc: {require: trusted}
+  share_file:
+    output: untrusted
+    args:
+      email: {require: trusted}
+  create_calendar_event:
+    output: untrusted
+    args:
+      participants: {require: trusted}
+  add_calendar_event_participants:
+    output: untrusted
+    args:
+      participants: {require: trusted}
