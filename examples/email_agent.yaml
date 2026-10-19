@@ -1,0 +1,36 @@
+version: 1
+
+# Tools not listed here are unknown: once the context holds untrusted
+# input, calling them needs the user's confirmation.
+default:
+  on_tainted: confirm
+
+tools:
+  read_inbox:
+    output: untrusted       # anyone on the internet can write an e-mail
+
+  fetch_url:
+    output: untrusted
+
+  get_contacts:
+    output: trusted         # the user's own address book can vouch for recipients
+
+  search_docs:
+    output: trusted
+
+  send_email:
+    on_tainted: confirm
+    args:
+      to:
+        require: trusted    # the recipient must come from the user or a trusted tool
+        on_violation: block
+
+  transfer_money:
+    on_tainted: block
+    args:
+      iban:
+        require: trusted
+        on_violation: block
+      amount:
+        require: trusted
+        on_violation: block

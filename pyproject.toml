@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "provguard"
+version = "0.1.0"
+description = "Provenance-based tool-call guard for LLM agents: untrusted data cannot steer sensitive actions."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Ziya Azizov" }]
+keywords = ["llm", "agents", "security", "prompt-injection", "mcp", "information-flow-control"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Intended Audience :: Developers",
+]
+dependencies = []
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+dev = ["pyyaml>=6.0", "pytest>=8.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/provguard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
