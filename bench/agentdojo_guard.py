@@ -14,8 +14,9 @@ from __future__ import annotations
 
 from ast import literal_eval
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 
+import yaml
 from agentdojo.agent_pipeline.tool_execution import ToolsExecutor, is_string_list
 from agentdojo.functions_runtime import EmptyEnv, Env, FunctionsRuntime
 from agentdojo.types import ChatMessage, ChatToolResultMessage, get_text_content_as_str, text_content_block_from_string
@@ -23,6 +24,15 @@ from agentdojo.types import ChatMessage, ChatToolResultMessage, get_text_content
 from provguard import Action, Decision, Guard, Policy
 
 ConfirmMode = Literal["deny", "allow"]
+
+
+def structured(text: str) -> Any:
+    """Recover the structure AgentDojo serialised to YAML, so fields are judged whole."""
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return text
+    return data if isinstance(data, (dict, list)) else text
 
 
 def guard_from_messages(policy: Policy, messages: Sequence[ChatMessage]) -> Guard:
@@ -35,7 +45,7 @@ def guard_from_messages(policy: Policy, messages: Sequence[ChatMessage]) -> Guar
         elif message["role"] == "user":
             guard.user(text)
         elif message["role"] == "tool" and message.get("error") is None:
-            guard.record_result(message["tool_call"].function, text)
+            guard.record_result(message["tool_call"].function, structured(text))
     return guard
 
 

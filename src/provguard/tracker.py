@@ -6,6 +6,11 @@ sequence. This is deliberately a *positive* check. ProvGuard never tries to
 decide whether text is malicious; it asks whether a trusted source supplied
 the value. A value the model invented or paraphrased has no trusted source,
 so rules that require one fail closed.
+
+Structured tool output (dicts and lists) vouches only for complete field
+values. A trusted channel list can vouch for the channel ``general``, but not
+for a URL that an outsider embedded inside a channel name. Free text, such as
+the user's own request, vouches for any whole-token span within it.
 """
 
 from __future__ import annotations
@@ -52,6 +57,14 @@ class Segment:
     text: str
     source: Source
     normalized: str
+    # Set for structured output: the normalized leaf values, matched exactly.
+    values: frozenset[str] | None = None
+
+    def contains(self, needle: str, pattern: re.Pattern[str]) -> bool:
+        if self.values is not None and self.source.trust is Trust.TRUSTED:
+            return needle in self.values
+        # Untrusted text is searched loosely: attributing more to it never grants trust.
+        return pattern.search(self.normalized) is not None
 
 
 @dataclass(frozen=True)
@@ -73,9 +86,12 @@ class ProvenanceTracker:
     def __init__(self) -> None:
         self._segments: list[Segment] = []
 
-    def add(self, text: Any, source: Source) -> None:
-        text = to_text(text)
-        self._segments.append(Segment(text, source, normalize(text)))
+    def add(self, content: Any, source: Source) -> None:
+        values = None
+        if isinstance(content, (dict, list, tuple)):
+            values = frozenset(normalize(v) for _, v in iter_leaves(content, ""))
+        text = to_text(content)
+        self._segments.append(Segment(text, source, normalize(text), values))
 
     @property
     def segments(self) -> tuple[Segment, ...]:
@@ -102,6 +118,6 @@ class ProvenanceTracker:
         pattern = re.compile(rf"(?<!\w){re.escape(needle)}(?!\w)")
         found: dict[Source, None] = {}
         for segment in self._segments:
-            if pattern.search(segment.normalized):
+            if segment.contains(needle, pattern):
                 found.setdefault(segment.source)
         return Provenance(text, tuple(found))

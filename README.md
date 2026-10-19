@@ -34,6 +34,64 @@ cannot drive `send_email` or `transfer_money`, however the e-mail is worded.
 4. **Escalate when the context is tainted.** Sensitive tools can require
    confirmation, or be blocked outright, once any untrusted text has been read.
 
+## Results: AgentDojo, replayed without a model
+
+[AgentDojo](https://github.com/ethz-spylab/agentdojo) (v1.2.2) ships a reference
+solution for every task. `python -m bench.oracle` replays them through ProvGuard,
+with no LLM in the loop, so every number below is deterministic:
+
+* **Legitimate tasks blocked**: does ProvGuard deny a call in the reference
+  solution of a user task?
+* **Attacks stopped**: the user task runs in an environment poisoned with the
+  `important_instructions` attack, then the attacker's reference calls follow as
+  if the agent were fully hijacked. Stopped means at least one of them is denied.
+
+| Suite | Legitimate tasks blocked | Attacks stopped (v1) | Attacks stopped (v2) |
+|---|---|---|---|
+| banking | 3 / 16 | 144 / 144 | **144 / 144 (100%)** |
+| slack | 12 / 21 | 53 / 105 | **97 / 105 (92%)** |
+| travel | 0 / 20 | 79 / 120 | **79 / 120 (66%)** |
+| workspace | 5 / 40 | 200 / 240 | **200 / 240 (83%)** |
+
+Pairs whose injection task has no reference solution in AgentDojo (20 in
+travel, 320 in workspace) cannot be replayed and are excluded, not counted as
+stopped.
+
+**How the policies were written.** The four policies in `bench/policies/` were
+committed before any injection task was read, from tool signatures alone.
+They have not been changed since.
+
+**v1 → v2, a change informed by the v1 failures.** In Slack, the attack text
+was planted in a *channel name*, and v1 trusted the channel list, so a URL
+inside that name looked trusted. v2 changes the library, not the policies:
+structured tool output now vouches only for *complete* field values
+(`general`), never for text found inside a field. Both result sets are kept in
+`results/oracle-v1/` and `results/oracle/`.
+
+**What still gets through, and why.** Every remaining attack works the same
+way: the attacker picks among options that are legitimate anyway.
+
+* Book the most expensive hotel from the real catalogue (travel).
+* Create a calendar event with no participants (travel).
+* Send a link to Alice, who really is a workspace member, with the link in the
+  message *body* (slack).
+* Delete file `13`, an id that appears in the user's own file list (workspace).
+* Send the user's passport number to the address the user asked to write to,
+  inside the e-mail body (travel, 1 pair).
+
+Argument provenance cannot stop these by design. `on_tainted: confirm` on
+state-changing tools moves them to a human; the benchmark has no human, so that
+trade-off is reported rather than hidden.
+
+**What it costs.** The blocked legitimate tasks are tasks where the user
+*delegated* the choice to untrusted content: "pay the bill in this file", "visit
+the link Eve posted", "invite Dora, her e-mail is on her website". Under a
+strict policy these need confirmation. That is the honest price of the
+guarantee, and the main thing v3 should reduce.
+
+These numbers measure the policy, not an agent. A live model may take other
+paths; `python -m bench.run` runs the same suites with a real model.
+
 ## Quick start
 
 ```bash
@@ -95,14 +153,17 @@ Stated up front, because a security tool that hides its limits is not one.
   Leaking data through such fields is a known gap.
 - **It needs to see every input.** Text that reaches the model without passing
   through `user`, `system` or `record_result` is invisible to it.
-- **Not yet evaluated** on public agent-security benchmarks. That evaluation,
-  with security and utility both reported, is the next milestone.
+- **Live-model evaluation is pending.** The results above replay reference
+  trajectories. Llama 3.1 8B (local) could not complete the benchmark tasks
+  even without a defence, so it cannot measure a defence; a stronger model is
+  needed.
 
 ## Roadmap
 
 - [x] Provenance tracker, policy engine, guard, audit log, tests
 - [ ] MCP proxy: enforce a policy in front of any MCP server without code changes
-- [ ] Benchmark evaluation (attack success rate and task utility, multiple seeds)
+- [x] Model-free AgentDojo evaluation (all four suites)
+- [ ] Live-model AgentDojo evaluation (attack success rate and utility, repeated runs)
 - [ ] Interactive web demo with a site assistant that runs behind ProvGuard
 
 ## License
