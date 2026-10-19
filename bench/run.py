@@ -45,6 +45,9 @@ def build_pipeline(args: argparse.Namespace, suite: str, defense: str, repeat: i
     client = openai.OpenAI(base_url=args.base_url, api_key=args.api_key)
     llm = OpenAILLM(client, args.model, temperature=args.temperature)
     system = load_system_message(None)
+    if args.no_think:
+        # Qwen3's switch for skipping hidden reasoning; several times faster on a laptop GPU.
+        system += "\n/no_think"
 
     if defense == "provguard":
         executor = GuardedToolsExecutor(Policy.from_yaml(POLICIES / f"{suite}.yaml"), confirm=args.confirm)
@@ -62,7 +65,8 @@ def build_pipeline(args: argparse.Namespace, suite: str, defense: str, repeat: i
     loop_elements = [executor, InitQuery(), llm] if defense == "repeat_user_prompt" else [executor, llm]
     pipeline = AgentPipeline([SystemMessage(system), InitQuery(), llm, ToolsExecutionLoop(loop_elements)])
     # "local" makes AgentDojo's attacks address the model as "Local model".
-    pipeline.name = f"local-{slug(args.model)}-{defense}-r{repeat}"
+    think = "-nothink" if args.no_think else ""
+    pipeline.name = f"local-{slug(args.model)}{think}-{defense}-r{repeat}"
     MODEL_NAMES.setdefault("local", "Local model")
     return pipeline
 
@@ -94,6 +98,7 @@ def run_one(args: argparse.Namespace, suite_name: str, defense: str, repeat: int
         "repeat": repeat,
         "model": args.model,
         "temperature": args.temperature,
+        "no_think": args.no_think,
         "attack": args.attack,
         "confirm": args.confirm,
         "benchmark_version": BENCHMARK_VERSION,
@@ -104,7 +109,8 @@ def run_one(args: argparse.Namespace, suite_name: str, defense: str, repeat: int
         # AgentDojo's "security" is True when the injection task succeeded.
         "attack_success": pairs(attacked["security_results"]),
     }
-    out = ROOT / "results" / suite_name / slug(args.model) / f"{defense}-r{repeat}.json"
+    model_dir = slug(args.model) + ("-nothink" if args.no_think else "")
+    out = ROOT / "results" / suite_name / model_dir / f"{defense}-r{repeat}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(record, indent=2), encoding="utf-8")
     return record
@@ -119,10 +125,11 @@ def main() -> None:
     parser.add_argument("--suite", nargs="+", choices=SUITES, default=SUITES)
     parser.add_argument("--defense", nargs="+", choices=DEFENSES, default=["none", "provguard"])
     parser.add_argument("--repeats", type=int, default=1)
-    parser.add_argument("--model", default="llama3.1-16k")
+    parser.add_argument("--model", default="qwen3-16k")
     parser.add_argument("--base-url", default="http://localhost:11434/v1", help="any OpenAI-compatible endpoint")
     parser.add_argument("--api-key", default="ollama", help="ignored by Ollama")
     parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--no-think", action="store_true", help="disable Qwen3 reasoning mode")
     parser.add_argument("--attack", default="important_instructions")
     parser.add_argument("--confirm", choices=["deny", "allow"], default="deny",
                         help="how ProvGuard's CONFIRM decisions resolve with no human present")
