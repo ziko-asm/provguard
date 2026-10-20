@@ -2,6 +2,8 @@
 
 **Untrusted data must not steer sensitive tool calls.**
 
+**Live site and playground: https://provguard.vercel.app**
+
 LLM agents read e-mails, web pages and documents written by strangers, then call
 tools with real side effects. Most defences try to *detect* malicious text. My
 [prompt-injection detector benchmark](https://prompt-injection-detector-snowy.vercel.app/)
