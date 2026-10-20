@@ -233,8 +233,8 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
           <p>AgentDojo banking attacks stopped when replaying the attacker's own reference calls, with policies written before any attack was read.</p>
         </div>
         <div>
-          <span class="big">0 ms model</span>
-          <p>No second LLM judges the text. The check is value matching against labelled inputs: deterministic, explainable, and cheap enough for every call.</p>
+          <span class="big" id="k-live">33% → 0%</span>
+          <p id="k-live-text">Attack success of a live Qwen3 8B agent on AgentDojo banking, without and with ProvGuard, while it kept solving the same share of tasks.</p>
         </div>
       </div>
     </section>
@@ -320,7 +320,8 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
         </div>
       </div>
       <div class="stack" style="margin-top:2.5rem">
-        <h3>Live model</h3>
+        <h3>A live agent</h3>
+        <p>Qwen3 8B running locally, AgentDojo banking: all 16 user tasks, and the first three injection tasks against each of them. Same policy, same attack, one run per defence at temperature 0.7, so one-task differences in utility are noise. With 0 of 48, the one-sided 95% upper bound on attack success under ProvGuard is about 6%.</p>
         <div id="live"></div>
       </div>
     </section>
@@ -369,7 +370,7 @@ tools:
 </main>
 
 <script>
-const DATA = {"oracle": {"banking": {"user_tasks": 16, "blocked": 3, "pairs": 144, "stopped": 144, "no_reference": 0, "stopped_v1": 144}, "slack": {"user_tasks": 21, "blocked": 12, "pairs": 105, "stopped": 97, "no_reference": 0, "stopped_v1": 53}, "travel": {"user_tasks": 20, "blocked": 0, "pairs": 120, "stopped": 79, "no_reference": 20, "stopped_v1": 79}, "workspace": {"user_tasks": 40, "blocked": 5, "pairs": 240, "stopped": 200, "no_reference": 320, "stopped_v1": 200}}, "live": []};
+const DATA = {"oracle": {"banking": {"user_tasks": 16, "blocked": 3, "pairs": 144, "stopped": 144, "no_reference": 0, "stopped_v1": 144}, "slack": {"user_tasks": 21, "blocked": 12, "pairs": 105, "stopped": 97, "no_reference": 0, "stopped_v1": 53}, "travel": {"user_tasks": 20, "blocked": 0, "pairs": 120, "stopped": 79, "no_reference": 20, "stopped_v1": 79}, "workspace": {"user_tasks": 40, "blocked": 5, "pairs": 240, "stopped": 200, "no_reference": 320, "stopped_v1": 200}}, "live": [{"suite": "banking", "defense": "none", "model": "qwen3-8k", "utility": 0.5, "attacked_utility": 0.5416666666666666, "attack_success": 0.3333333333333333, "n_clean": 16, "n_attacked": 48}, {"suite": "banking", "defense": "provguard", "model": "qwen3-8k", "utility": 0.5625, "attacked_utility": 0.5, "attack_success": 0.0, "n_clean": 16, "n_attacked": 48}]};
 
 // ---- ProvGuard core, ported from src/provguard (tracker.py, guard.py) ----
 const normalize = (s) => String(s).toLowerCase().split(/\s+/).filter(Boolean).join(" ");
@@ -580,6 +581,9 @@ function renderResults() {
   const thead = el("thead"); thead.append(head);
   const tb = el("tbody");
   const fmt = (x) => (x === null ? "–" : (x * 100).toFixed(1) + "%");
+  const none = DATA.live.find((r) => r.suite === "banking" && r.defense === "none");
+  const pg = DATA.live.find((r) => r.suite === "banking" && r.defense === "provguard");
+  if (none && pg) $("k-live").textContent = `${Math.round(none.attack_success * 100)}% → ${Math.round(pg.attack_success * 100)}%`;
   DATA.live.forEach((r) => {
     const tr = el("tr");
     [r.suite, r.defense, r.model, `${fmt(r.utility)} (n=${r.n_clean})`, fmt(r.attacked_utility), `${fmt(r.attack_success)} (n=${r.n_attacked})`]

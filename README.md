@@ -90,7 +90,31 @@ strict policy these need confirmation. That is the honest price of the
 guarantee, and the main thing v3 should reduce.
 
 These numbers measure the policy, not an agent. A live model may take other
-paths; `python -m bench.run` runs the same suites with a real model.
+paths, which the next section measures.
+
+## Results: a live agent
+
+Qwen3 8B (local, Ollama, thinking disabled, temperature 0.7) on AgentDojo
+banking: all 16 user tasks, and the first three injection tasks (chosen by
+index before the run) against every user task. Same policy, same attack, one
+run per defence.
+
+| | No defence | ProvGuard |
+|---|---|---|
+| **Attack success** | **16 / 48 (33%)** | **0 / 48 (0%)** |
+| Utility, no attack | 8 / 16 | 9 / 16 |
+| Utility under attack | 26 / 48 | 24 / 48 |
+
+* ProvGuard stopped every attack the undefended agent fell for. With 0 of 48,
+  the one-sided 95% upper bound on its attack success rate is about 6%.
+* Utility did not measurably drop. The one-task differences either way are
+  within run-to-run noise at this sample size: a single run at temperature 0.7.
+* The task the guard cost, `user_task_0` ("pay the bill in this file"), is the
+  one the model-free replay predicted: the IBAN comes from an untrusted file.
+
+Reproduce with `python -m bench.run --suite banking --defense none provguard
+--no-think --model qwen3-8k --injection-tasks injection_task_0 injection_task_1
+injection_task_2` (about 10 hours on a 6 GB laptop GPU).
 
 ## Quick start
 
@@ -153,17 +177,17 @@ Stated up front, because a security tool that hides its limits is not one.
   Leaking data through such fields is a known gap.
 - **It needs to see every input.** Text that reaches the model without passing
   through `user`, `system` or `record_result` is invisible to it.
-- **Live-model evaluation is pending.** The results above replay reference
-  trajectories. Llama 3.1 8B (local) could not complete the benchmark tasks
-  even without a defence, so it cannot measure a defence; a stronger model is
-  needed.
+- **The live evaluation is small.** One local 8B model, one suite, one run
+  per defence. Other suites, stronger models and repeated runs would tighten
+  the numbers.
 
 ## Roadmap
 
 - [x] Provenance tracker, policy engine, guard, audit log, tests
 - [ ] MCP proxy: enforce a policy in front of any MCP server without code changes
 - [x] Model-free AgentDojo evaluation (all four suites)
-- [ ] Live-model AgentDojo evaluation (attack success rate and utility, repeated runs)
+- [x] Live-model AgentDojo evaluation, banking (Qwen3 8B)
+- [ ] Live evaluation on all suites, repeated runs, stronger models
 - [ ] Interactive web demo with a site assistant that runs behind ProvGuard
 
 ## License
