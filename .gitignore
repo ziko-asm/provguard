@@ -1,4 +1,4 @@
-__pycache__/
+﻿__pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
@@ -8,5 +8,5 @@ build/
 audit*.jsonl
 runs/
 results/*/llama*/
-overnight.*
+overnight*
 site/build/
