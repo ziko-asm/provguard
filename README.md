@@ -124,6 +124,26 @@ metric counted as stopped while the attack still reached its goal: banking
   corrected policy. Policy lint checks tool and argument names, not field
   names.
 
+## Live agent: Slack (v0.2)
+
+Qwen3 8B through Ollama, thinking off, temperature 0.7; all 21 Slack user
+tasks, injection tasks 1–3 against each (63 pairs; Slack numbers its
+injection tasks from 1). One run per defence. ProvGuard uses the v3 policy
+with `--confirm deny`: no person is present, so every CONFIRM is a refusal.
+
+| | No defence | ProvGuard (v3, no human) |
+|---|---|---|
+| Attack success | 14 / 63 (22.2%, 95% CI 12.7–34.5%) | **0 / 63 (0%, 95% CI 0–5.7%)** |
+| Utility, clean | 15 / 21 (71.4%) | 9 / 21 (42.9%) |
+| Utility under attack | 37 / 63 (58.7%) | 16 / 63 (25.4%) |
+
+Together with banking, ProvGuard let **0 of 111** live attacks through,
+against 30 of 111 without it. The cost is utility when nobody can approve a
+confirmation: v3 turns several Slack blocks into confirmations precisely so a
+person can approve them, and with `--confirm deny` they act as blocks. The
+replay estimates 20 of 21 Slack tasks with an approving user; a live run with
+a simulated approving user is still to do.
+
 ## Results: AgentDojo, replayed without a model
 
 [AgentDojo](https://github.com/ethz-spylab/agentdojo) (v1.2.2) ships a reference

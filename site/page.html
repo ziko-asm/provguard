@@ -326,7 +326,8 @@ footer { padding-block: 2.5rem; border-top: 1px solid var(--line); color: var(--
       </div>
       <div class="stack" style="margin-top:2.5rem">
         <h3>A live agent</h3>
-        <p>Qwen3 8B running locally, AgentDojo banking: all 16 user tasks, and the first three injection tasks against each of them. Same policy, same attack, one run per defence at temperature 0.7, so one-task differences in utility are noise. With 0 of 48, the one-sided 95% upper bound on attack success under ProvGuard is about 6%.</p>
+        <p>Qwen3 8B running locally: every user task of a suite, and its first three injection tasks against each of them. One run per defence at temperature 0.7, so small differences in utility are noise. Banking uses the blind v2 policy; Slack uses the v3 policy with no person present, so every confirmation counts as a refusal. Across both suites ProvGuard let 0 of 111 attacks through, against 30 of 111 without it; on its own, 0 of 63 on Slack bounds attack success below 5.7% (95%).</p>
+        <p class="small">The price shows on Slack: with nobody to approve confirmations, clean utility falls from 71% to 43%. The replay above estimates that a person who approves the legitimate confirmations recovers 20 of 21 tasks; that has not yet been measured with a live model.</p>
         <div id="live"></div>
       </div>
     </section>

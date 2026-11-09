@@ -157,7 +157,8 @@ def live_summary() -> list[dict]:
             return sum(d.values()) / len(d) if d else None
 
         rows.append({
-            "suite": r["suite"], "defense": r["defense"], "model": r["model"],
+            "suite": r["suite"], "model": r["model"],
+            "defense": r["defense"] + (" (v3 policy, no human)" if "v3" in (r.get("policies") or "") else ""),
             "utility": rate(r["clean_utility"]), "attacked_utility": rate(r["attacked_utility"]),
             "attack_success": rate(r["attack_success"]),
             "n_clean": len(r["clean_utility"]), "n_attacked": len(r["attack_success"]),
