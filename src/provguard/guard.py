@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,7 +11,9 @@ from typing import Any
 from .audit import AuditLog
 from .labels import SYSTEM, USER, Source
 from .policy import Action, ArgRule, Policy
-from .tracker import ProvenanceTracker, find_urls, iter_leaves, normalize, numeric_variants
+from .tracker import ProvenanceTracker, SecretReport, find_urls, iter_leaves, normalize, numeric_variants
+
+_LOG = logging.getLogger("provguard")
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,8 @@ class Guard:
         self.tracker = tracker or ProvenanceTracker()
         self.audit = audit
         self.grants: list[Grant] = []
+        # Policy mistakes that would otherwise pass silently (see record_result).
+        self.warnings: list[str] = []
 
     def grant(
         self,
@@ -130,7 +135,37 @@ class Guard:
 
     def record_result(self, tool: str, output: Any) -> None:
         rules = self.policy.for_tool(tool)
-        self.tracker.add(output, Source("tool", tool, rules.output_trust, rules.output_secret), rules.secret_fields)
+        report = self.tracker.add(
+            output, Source("tool", tool, rules.output_trust, rules.output_secret), rules.secret_fields
+        )
+        if report is None:
+            return
+        if report.unmatched:
+            missing = ", ".join(sorted(report.unmatched))
+            seen = ", ".join(sorted(report.seen)) or "no named fields"
+            self._warn(
+                f"{tool}: secret fields {missing} match no field of its output "
+                f"(fields seen: {seen}); the rule protects nothing"
+            )
+        for declared, fields in sorted(report.folded.items()):
+            self._warn(
+                f"{tool}: secret field {declared} covers {', '.join(fields)}, which only matches "
+                f"by spelling; use the output's own field name"
+            )
+
+    def _warn(self, message: str) -> None:
+        """Record a policy warning the caller can show, and log it.
+
+        Field names are not secret (values are), so naming them is safe and is
+        the only way a policy author sees the mistake.
+        """
+        self.warnings.append(message)
+        _LOG.warning("provguard: %s", message)
+
+    def take_warnings(self) -> list[str]:
+        """The policy warnings raised since the last call, and clear them."""
+        out, self.warnings = self.warnings, []
+        return out
 
     def check(self, tool: str, args: dict[str, Any]) -> Decision:
         rules = self.policy.for_tool(tool)
@@ -156,6 +191,19 @@ class Guard:
                             f"{path} contains {_redact(secret)}, a field of secret output from {source}",
                             rule.on_violation, path,
                         ))
+
+        if rules.unknown_args is not Action.ALLOW:
+            # An argument with no rule of its own is unchecked, which is how data
+            # leaves through a field nobody thought about (cc, bcc, attachments).
+            # A null argument carries nothing, so it is not a finding.
+            for name in args:
+                if name in rules.args or args[name] is None:
+                    continue
+                findings.append(Finding(
+                    "unlisted-argument",
+                    f"argument {name} is not covered by the policy for this tool",
+                    rules.unknown_args, str(name),
+                ))
 
         if self.tracker.tainted and rules.on_tainted is not Action.ALLOW:
             sources = ", ".join(map(str, self.tracker.untrusted_sources()))

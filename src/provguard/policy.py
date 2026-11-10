@@ -84,6 +84,8 @@ class ToolPolicy:
     secret_fields: frozenset[str] | None = None
     on_tainted: Action = Action.ALLOW
     args: Mapping[str, ArgRule] = field(default_factory=dict)
+    # Arguments the policy does not mention: ALLOW skips them unchecked.
+    unknown_args: Action = Action.ALLOW
 
 
 @dataclass(frozen=True)
@@ -131,10 +133,15 @@ def _check_keys(data: Mapping[str, Any], allowed: set[str], where: str) -> None:
         raise PolicyError(f"{where}: unknown keys {sorted(unknown)}")
 
 
-def _tool_policy(spec: Any, where: str, on_tainted_default: Action) -> ToolPolicy:
+def _tool_policy(
+    spec: Any,
+    where: str,
+    on_tainted_default: Action,
+    unknown_args_default: Action = Action.ALLOW,
+) -> ToolPolicy:
     if not isinstance(spec, Mapping):
         raise PolicyError(f"{where}: expected a mapping")
-    _check_keys(spec, {"output", "secret", "on_tainted", "args"}, where)
+    _check_keys(spec, {"output", "secret", "on_tainted", "args", "unknown_args"}, where)
     output = str(spec.get("output", "untrusted")).lower()
     if output not in ("trusted", "untrusted"):
         raise PolicyError(f"{where}.output: expected trusted or untrusted, got {output!r}")
@@ -145,6 +152,9 @@ def _tool_policy(spec: Any, where: str, on_tainted_default: Action) -> ToolPolic
     elif not isinstance(secret, bool):
         raise PolicyError(f"{where}.secret: expected true, false or a list of field names, got {secret!r}")
     on_tainted = Action.parse(spec.get("on_tainted", on_tainted_default.name), f"{where}.on_tainted")
+    unknown_args = Action.parse(
+        spec.get("unknown_args", unknown_args_default.name), f"{where}.unknown_args"
+    )
     args_data = spec.get("args") or {}
     if not isinstance(args_data, Mapping):
         raise PolicyError(f"{where}.args: expected a mapping")
@@ -155,6 +165,7 @@ def _tool_policy(spec: Any, where: str, on_tainted_default: Action) -> ToolPolic
         secret_fields=secret_fields,
         on_tainted=on_tainted,
         args=args,
+        unknown_args=unknown_args,
     )
 
 

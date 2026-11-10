@@ -4,7 +4,7 @@ from .audit import AuditLog
 from .guard import Decision, Finding, Grant, Guard, ToolCallDenied
 from .labels import SYSTEM, USER, Source, Trust
 from .policy import Action, ArgRule, Policy, PolicyError, ToolPolicy
-from .tracker import Provenance, ProvenanceTracker
+from .tracker import Provenance, ProvenanceTracker, SecretReport
 
 __all__ = [
     "Action",
@@ -19,6 +19,7 @@ __all__ = [
     "Provenance",
     "ProvenanceTracker",
     "SYSTEM",
+    "SecretReport",
     "Source",
     "ToolCallDenied",
     "ToolPolicy",

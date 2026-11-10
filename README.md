@@ -85,6 +85,43 @@ python -m bench.oracle --policies bench/policies-v3 --tag v3 --attack provenance
 python site/build.py                                            # the site picks up results/oracle-v3/
 ```
 
+## New in v0.3 (unreleased)
+
+Three gaps that a policy could not close before. All of them are opt-in or
+report-only, so existing policies behave exactly as they did in v0.2.
+
+| Change | How | Closes |
+|---|---|---|
+| Arguments with no rule of their own | tool `unknown_args: block \| confirm` | data leaving through a field nobody wrote a rule for: `cc`, `bcc`, `attachments` |
+| A `secret:` field name that matches nothing, or only by spelling | automatic: matched with case/separator folding, plus `guard.warnings`, a WARNING log line, the proxy's stderr | a rule that protects nothing, because the policy says `passport_number` and the tool returns `Passport Number` |
+| `tools/call` sent as a notification | automatic in `provguard-mcp` | a call that ran the tool without being checked, because it carried no id to answer |
+
+**`unknown_args` is the one to turn on.** A policy that guards `to` and `body`
+says nothing about `bcc`, and a model (or the text it was reading) is free to
+put an address there. Setting `unknown_args: block` makes every argument the
+policy does not mention a finding, with the rule `unlisted-argument`; the
+message names the argument and never repeats its value. Arguments listed with
+an empty rule (`body: {}`) count as known and unchecked, and an argument whose
+value is `null` is not a finding, since it carries nothing. The default stays
+`allow`, which is why v0.2 policies do not change.
+
+**A secret field that matched nothing used to be silent.** The v0.2 report
+already records this incident: the policy named `passport_number`, the tool
+returned `Passport Number`, the rule never fired and one attack got through.
+Field names are now matched exactly first, then with case, spaces, underscores
+and hyphens folded, so the policy protects the field it meant. Either way
+`record_result` says so: a folded match is reported, and a name that matches no
+field at all is reported with the fields the output actually had (names, never
+values). `guard.take_warnings()` returns and clears them, and `provguard-mcp`
+prints them next to its decisions. Only a policy that names a field the tool
+never returns still protects nothing, and now it says so instead of passing.
+
+**A `tools/call` without an id was forwarded unchecked.** The proxy only
+inspected `tools/call` messages that had an id, so the same call sent as a
+JSON-RPC notification ran the tool with no policy at all. Every `tools/call` is
+now checked; a notification cannot carry a refusal, so when the policy objects
+the call is dropped and the reason is logged rather than forwarded.
+
 ## Results v0.2: rescored, and the v3 policies
 
 Model-free replay, AgentDojo v1.2.2, `important_instructions`. "Prevented" is
@@ -255,7 +292,7 @@ lists. One proxy guards one server.
 
 ```bash
 pip install -e ".[yaml]"
-pytest                      # 71 tests, no network or GPU needed
+pytest                      # 89 tests, no network or GPU needed
 python examples/demo.py
 ```
 
@@ -287,6 +324,7 @@ tools:
     output: trusted
   send_email:
     on_tainted: confirm
+    unknown_args: block      # cc, bcc, attachments: no rule, no way out
     args:
       to:
         require: trusted
@@ -298,7 +336,9 @@ Unknown keys and invalid values raise `PolicyError`: a typo in a security policy
 fails loudly instead of being ignored.
 
 v0.2 adds, per argument: `min_length`, `urls: trusted` and `secrets: forbid`;
-per tool: `secret: true` or `secret: [field, ...]`.
+per tool: `secret: true` or `secret: [field, ...]`. v0.3 adds, per tool:
+`unknown_args: allow | confirm | block` (default `allow`), which decides what
+happens to arguments the policy does not mention.
 
 ```python
 # The user asked to pay the bill in bill.txt: allow that file's IBAN, once.
@@ -322,6 +362,8 @@ Stated up front, because a security tool that hides its limits is not one.
   still leave through them.
 - **It needs to see every input.** Text that reaches the model without passing
   through `user`, `system` or `record_result` is invisible to it.
+- **Only the arguments a policy mentions are checked**, unless the tool sets
+  `unknown_args`. Turning it on is what closes `cc`, `bcc` and similar fields.
 - **The live evaluation is small.** One local 8B model, one suite, one run
   per defence. Other suites, stronger models and repeated runs would tighten
   the numbers.
@@ -332,6 +374,7 @@ Stated up front, because a security tool that hides its limits is not one.
 - [x] MCP proxy: enforce a policy in front of any MCP server without code changes (v0.2)
 - [x] Links and secret fields in free text, scoped grants, numeric matching (v0.2)
 - [x] Goal-based scoring, confirmation burden, exact intervals, policy lint (v0.2)
+- [x] `unknown_args`, secret-field diagnostics, every `tools/call` checked (v0.3)
 - [x] Run the v0.2 oracle: blind v2 rescored, v3 policies
 - [ ] `provenance_aware` attack, oracle and live
 - [x] Model-free AgentDojo evaluation (all four suites)

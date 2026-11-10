@@ -10,7 +10,9 @@ sides, forwards everything unchanged, and steps in at two points:
   ALLOW is forwarded. BLOCK is answered by the proxy with a tool error that
   explains why, so the model sees an ordinary failed call. CONFIRM asks the
   user through MCP elicitation when the client supports it, and is refused
-  when it does not; the approved call is forwarded, nothing more.
+  when it does not; the approved call is forwarded, nothing more. A
+  ``tools/call`` sent as a notification (no id, so no reply is possible) is
+  still checked, and refused rather than forwarded when the policy objects.
 * every ``tools/call`` result is recorded with the trust label the policy
   gives that tool, so later calls are judged against it.
 
@@ -105,7 +107,9 @@ class Proxy:
         if method == "initialize":
             caps = (message.get("params") or {}).get("capabilities") or {}
             self.can_elicit = "elicitation" in caps
-        elif method == "tools/call" and "id" in message:
+        elif method == "tools/call":
+            # Every tools/call is checked, with or without an id: a notification
+            # is still a call that runs the tool.
             self._tool_call(message)
             return
         elif method is None and str(message.get("id", "")) in self._pending:
@@ -121,6 +125,10 @@ class Proxy:
         self._note(decision.explain())
         if decision.action is Action.ALLOW:
             self._forward_call(message, tool, decision)
+        elif "id" not in message:
+            # A notification cannot carry a refusal, and forwarding it unchecked
+            # would be the bypass this proxy exists to prevent. Drop it, loudly.
+            self._note(f"refused {tool}: a tools/call without an id cannot be answered")
         elif decision.action is Action.CONFIRM and self.can_elicit:
             eid = f"provguard-{next(self._ids)}"
             with self._state:
@@ -135,8 +143,9 @@ class Proxy:
             self.to_client({"jsonrpc": "2.0", "id": message["id"], "result": _denied(decision, note)})
 
     def _forward_call(self, message: dict, tool: str, decision: Decision) -> None:
-        with self._state:
-            self._calls[message["id"]] = tool
+        if "id" in message:  # a notification has no result to record
+            with self._state:
+                self._calls[message["id"]] = tool
         self.guard.commit(decision)
         self.to_server(message)
 
@@ -159,6 +168,8 @@ class Proxy:
                 tool = self._calls.pop(message["id"], None)
             if tool is not None and "result" in message:
                 self.guard.record_result(tool, _result_payload(message["result"]))
+                for warning in self.guard.take_warnings():
+                    self._note(warning)
         self.to_client(message)
 
 

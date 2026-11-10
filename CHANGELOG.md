@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Library
+- Tool `unknown_args: allow | confirm | block` (default `allow`): an argument the policy does not mention is a finding (`unlisted-argument`), so `cc`, `bcc` or `attachments` cannot carry data out of a tool whose other arguments are guarded. An empty rule (`body: {}`) marks an argument as known and unchecked; a `null` value is not a finding.
+- A `secret: [field, ...]` name is matched against the tool output exactly first, then with case, spaces, underscores and hyphens folded, so `passport_number` covers a `Passport Number` field (the v0.2 incident where the rule silently never fired). A folded match, and a name that matches no field at all, are reported: `Guard.record_result` appends to `guard.warnings` and logs at WARNING with the field names (never values); `guard.take_warnings()` returns and clears them.
+- `ProvenanceTracker.add` returns a `SecretReport` (declared/matched/seen, `.unmatched`) when field-scoped secrets were requested.
+
+MCP proxy
+- Every `tools/call` is checked, including one sent as a JSON-RPC notification. A notification cannot carry a refusal, so a call the policy does not allow is dropped and logged instead of forwarded unchecked.
+- Policy warnings from `record_result` are printed on the proxy's log stream.
+
 ## 0.2.0
 
 Library

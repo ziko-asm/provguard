@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -93,6 +93,15 @@ def _field(path: str) -> str:
     return re.sub(r"\[\d+\]$", "", path).rsplit(".", 1)[-1]
 
 
+def fold_field(name: str) -> str:
+    """A field name as a person writes it: case, spaces, underscores, hyphens.
+
+    ``passport_number``, ``Passport Number`` and ``passport-number`` are the same
+    field to everyone except a string comparison.
+    """
+    return " ".join(normalize(name).replace("_", " ").replace("-", " ").split())
+
+
 @dataclass(frozen=True)
 class Segment:
     text: str
@@ -108,6 +117,29 @@ class Segment:
             return not needles.isdisjoint(self.values)
         # Untrusted text is searched loosely: attributing more to it never grants trust.
         return pattern.search(self.normalized) is not None
+
+
+@dataclass(frozen=True)
+class SecretReport:
+    """What a declared ``secret: [field, ...]`` actually matched in one output.
+
+    ``matched`` maps each declared name to the output field(s) it covers;
+    ``unmatched`` lists names that cover nothing at all, which means the rule
+    protects nothing.
+    """
+
+    declared: frozenset[str]
+    matched: Mapping[str, tuple[str, ...]]
+    seen: frozenset[str]
+
+    @property
+    def unmatched(self) -> frozenset[str]:
+        return frozenset(self.declared - set(self.matched))
+
+    @property
+    def folded(self) -> dict[str, tuple[str, ...]]:
+        """Declared names that only matched by spelling (``passport_number``)."""
+        return {declared: fields for declared, fields in self.matched.items() if fields != (declared,)}
 
 
 @dataclass(frozen=True)
@@ -129,23 +161,54 @@ class ProvenanceTracker:
     def __init__(self) -> None:
         self._segments: list[Segment] = []
 
-    def add(self, content: Any, source: Source, secret_fields: frozenset[str] | None = None) -> None:
+    def add(
+        self,
+        content: Any,
+        source: Source,
+        secret_fields: frozenset[str] | None = None,
+    ) -> SecretReport | None:
         """Record ``content``. For a secret source, ``secret_fields`` limits which
-        fields are confidential; ``None`` means all of them."""
+        fields are confidential; ``None`` means all of them.
+
+        Returns a :class:`SecretReport` when ``secret_fields`` was given, so the
+        caller can see which declared field names the output did not have.
+        """
         values = None
         secrets: frozenset[str] = frozenset()
+        report: SecretReport | None = None
         text = to_text(content)
         if isinstance(content, (dict, list, tuple)):
             leaves = list(iter_leaves(content, ""))
             values = frozenset(normalize(v) for _, v in leaves)
             if source.secret:
-                secrets = frozenset(
-                    normalize(v) for path, v in leaves
-                    if secret_fields is None or _field(path) in secret_fields
-                )
-        elif source.secret and secret_fields is None:
-            secrets = frozenset({normalize(text)})
+                if secret_fields is None:
+                    secrets = frozenset(normalize(v) for _, v in leaves)
+                else:
+                    # Only named fields can be declared, so a leaf with no key
+                    # (an item of a plain list) names nothing.
+                    seen = frozenset(field for field in (_field(path) for path, _ in leaves) if field)
+                    matched: dict[str, tuple[str, ...]] = {}
+                    for declared in sorted(secret_fields):
+                        # Exact spelling first; the way a person writes the same
+                        # name second, so passport_number still covers "Passport Number".
+                        fields = tuple(sorted(f for f in seen if f == declared)) or tuple(
+                            sorted(f for f in seen if fold_field(f) == fold_field(declared))
+                        )
+                        if fields:
+                            matched[declared] = fields
+                    protected = {field for fields in matched.values() for field in fields}
+                    secrets = frozenset(
+                        normalize(v) for path, v in leaves if _field(path) in protected
+                    )
+                    report = SecretReport(frozenset(secret_fields), matched, seen)
+        elif source.secret:
+            if secret_fields is None:
+                secrets = frozenset({normalize(text)})
+            else:
+                # Field names on output that is not structured cannot match anything.
+                report = SecretReport(frozenset(secret_fields), {}, frozenset())
         self._segments.append(Segment(text, source, normalize(text), values, secrets))
+        return report
 
     @property
     def segments(self) -> tuple[Segment, ...]:
